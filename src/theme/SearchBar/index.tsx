@@ -6,8 +6,9 @@ import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 // @ts-ignore
 import {highlight} from '@easyops-cn/docusaurus-search-local/dist/client/client/utils/highlight';
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
-import {faMagnifyingGlass, faFileLines, faHashtag, faArrowRightLong, faArrowUp, faArrowDown, faArrowTurnDown, faXmark, faTriangleExclamation} from '@fortawesome/free-solid-svg-icons';
+import {faMagnifyingGlass, faFileLines, faHashtag, faArrowRightLong, faArrowUp, faArrowDown, faArrowTurnDown, faXmark, faTriangleExclamation, faClockRotateLeft} from '@fortawesome/free-solid-svg-icons';
 import {prefetchIndex, searchIndex} from './client';
+import {clearRecent, loadRecent, rememberRecent} from './history';
 import {rankPages, type Row} from './rank';
 import {POPULAR_PAGES} from '@site/src/data/navigation';
 import styles from './styles.module.css';
@@ -30,6 +31,8 @@ function Modal({onClose}: ModalProps): ReactNode {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [failed, setFailed] = useState(false);
+  // La modale n'est montée que côté client, après l'ouverture : le localStorage est lisible ici.
+  const [recent, setRecent] = useState<string[]>(() => loadRecent());
 
   useEffect(() => {
     // À la fermeture, le focus revient là où il était (le bouton de recherche ou le raccourci clavier).
@@ -82,9 +85,22 @@ function Modal({onClose}: ModalProps): ReactNode {
   }, [active]);
 
   const go = useCallback((hit: Row) => {
+    // On ne garde que les recherches menées jusqu'à l'ouverture d'un résultat.
+    rememberRecent(query);
     onClose();
     history.push(hit.url);
-  }, [history, onClose]);
+  }, [history, onClose, query]);
+
+  const reuse = (value: string) => {
+    setQuery(value);
+    inputRef.current?.focus();
+  };
+
+  const forget = () => {
+    clearRecent();
+    setRecent([]);
+    inputRef.current?.focus();
+  };
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Escape') {
@@ -191,6 +207,24 @@ function Modal({onClose}: ModalProps): ReactNode {
               <p className={styles.placeholder}>
                 Tapez un mot-clé : <em>wordpress</em>, <em>certificat SSL</em>, <em>cron</em>, <em>messagerie</em>…
               </p>
+              {recent.length > 0 && (
+                <>
+                  <div className={styles.suggestionsHeader}>
+                    <p className={styles.suggestionsTitle}>Recherches récentes</p>
+                    <button type="button" className={styles.clearRecent} onClick={forget}>Effacer</button>
+                  </div>
+                  <ul className={styles.suggestionList}>
+                    {recent.map((item) => (
+                      <li key={item}>
+                        <button type="button" className={styles.suggestion} onClick={() => reuse(item)}>
+                          <FontAwesomeIcon icon={faClockRotateLeft} fixedWidth />
+                          <span>{item}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
               <p className={styles.suggestionsTitle}>Pages utiles</p>
               <ul className={styles.suggestionList}>
                 {POPULAR_PAGES.map((page) => (
